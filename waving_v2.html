@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Waving 雙手波浪模擬器 Pro - 響應式行動版</title>
+    <!-- 引入 Tailwind CSS 快速建立現代響應式介面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brandBg: '#090a0f',
+                        panelBg: 'rgba(15, 18, 36, 0.85)',
+                        neonBlue: '#00f2fe',
+                        neonPink: '#fe0979',
+                        neonPurple: '#9b51e0',
+                        brandText: '#e2e8f0'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 隱藏滾動條但保持功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .no-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        /* 鎖定畫布觸控避免畫面拖動 */
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-brandBg text-brandText flex flex-col md:flex-row h-screen w-screen overflow-hidden select-none">
+
+    <!-- 1. 行動端頂部欄 (只在行動裝置顯示) -->
+    <div class="md:hidden flex items-center justify-between px-5 py-3 bg-[#0f1224] border-b border-white/10 z-20">
+        <div class="flex flex-col">
+            <span class="text-md font-bold bg-gradient-to-r from-neonBlue to-neonPink bg-clip-text text-transparent">Waving Pro Mobile</span>
+            <span class="text-xs text-slate-500">11 節點全身雙手臂波動模擬器</span>
+        </div>
+        <!-- 齒輪設定按鈕 -->
+        <button id="btn-toggle-menu" class="p-2 bg-white/5 rounded-lg border border-white/10 active:scale-95 transition-all text-neonBlue">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- 2. 側邊/底控制面板 -->
+    <div id="control-panel" class="fixed inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:static flex flex-col w-[320px] lg:w-[360px] bg-panelBg backdrop-blur-xl border-r border-white/10 p-6 z-30 transition-transform duration-300 ease-in-out h-full no-scrollbar overflow-y-auto">
+        
+        <!-- 手機端關閉選單按鈕 -->
+        <div class="md:hidden flex justify-end mb-4">
+            <button id="btn-close-menu" class="p-1 text-slate-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div>
+            <h2 class="text-2xl font-extrabold bg-gradient-to-r from-neonBlue to-neonPink bg-clip-text text-transparent">Waving Pro</h2>
+            <p class="text-xs text-slate-500 mt-1">極限街舞視覺波浪物理模擬</p>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <!-- [新功能] 手勢與姿勢預設 -->
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-slate-300">街舞手勢預設 (Gesture Presets)</label>
+            <div class="grid grid-cols-2 gap-2" id="preset-group">
+                <button class="py-1.5 text-[11px] font-bold rounded-md bg-neonBlue/10 border border-neonBlue/20 text-neonBlue active:scale-95 transition-all" data-preset="tpose">經典水平 (T-Pose)</button>
+                <button class="py-1.5 text-[11px] font-bold rounded-md bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition-all" data-preset="raised">舉手高歌 (High-V)</button>
+                <button class="py-1.5 text-[11px] font-bold rounded-md bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition-all" data-preset="lowered">垂手休息 (Low-V)</button>
+                <button class="py-1.5 text-[11px] font-bold rounded-md bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition-all" data-preset="asym">不對稱潮態 (L-Pose)</button>
+                <button class="py-1.5 text-[11px] font-bold rounded-md bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition-all col-span-2" data-preset="egyptian">埃及手姿 (Egyptian Pose)</button>
+            </div>
+        </div>
+
+        <!-- [新功能] 手動雙臂基礎角度微調 -->
+        <div class="flex flex-col gap-4 mt-2">
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">左臂基底角度 (Left Arm)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="left-angle-badge">-180°</span>
+                </div>
+                <!-- 左臂在極座標系統中，水平向左是 180°（或 -180°） -->
+                <input type="range" id="param-left-angle" min="-270" max="90" step="5" value="-180" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">右臂基底角度 (Right Arm)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="right-angle-badge">0°</span>
+                </div>
+                <!-- 右臂在極座標系統中，水平向右是 0° -->
+                <input type="range" id="param-right-angle" min="-180" max="180" step="5" value="0" class="w-full accent-neonBlue">
+            </div>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <!-- 傳導模式 -->
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-slate-300">傳導模式 (Wave Mode)</label>
+            <div class="flex bg-white/5 p-1 rounded-lg border border-white/10" id="wave-mode-group">
+                <button class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all bg-neonBlue/20 text-neonBlue border border-neonBlue/30" data-mode="pulse">單次脈衝 (Pulse)</button>
+                <button class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-slate-400 hover:text-white" data-mode="continuous">連續正弦 (Sine)</button>
+            </div>
+            <p id="mode-desc" class="text-[10px] text-slate-500 leading-relaxed mt-1">單次脈衝適合手指劃動或單次 Pop 觸發；連續正弦呈現不間斷的波浪流。</p>
+        </div>
+
+        <!-- 傳導方向 -->
+        <div class="flex flex-col gap-2 mt-2">
+            <label class="text-xs font-semibold text-slate-300">波動方向 (Direction)</label>
+            <div class="grid grid-cols-3 bg-white/5 p-1 rounded-lg border border-white/10" id="dir-group">
+                <button class="py-1.5 text-xs font-bold rounded-md transition-all bg-neonBlue/20 text-neonBlue border border-neonBlue/30" data-dir="L2R">左 ➔ 右</button>
+                <button class="py-1.5 text-xs font-bold rounded-md transition-all text-slate-400 hover:text-white" data-dir="R2L">右 ➔ 左</button>
+                <button class="py-1.5 text-xs font-bold rounded-md transition-all text-slate-400 hover:text-white" data-dir="bounce">雙向反彈</button>
+            </div>
+        </div>
+
+        <!-- 操作按鍵 -->
+        <div class="grid grid-cols-2 gap-3 mt-4">
+            <button id="btn-trigger" class="py-2.5 bg-neonPink/20 text-neonPink border border-neonPink/30 hover:bg-neonPink hover:text-white rounded-lg font-bold text-xs active:scale-95 transition-all">觸發波浪 (Pop)</button>
+            <button id="btn-play-pause" class="py-2.5 bg-white/5 text-white border border-white/10 hover:bg-white/10 rounded-lg font-bold text-xs active:scale-95 transition-all">暫停模擬</button>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <!-- 物理演算法參數調校 -->
+        <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">波動速度 (Speed)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="speed-badge">1.2 Hz</span>
+                </div>
+                <input type="range" id="param-speed" min="0.2" max="3.0" step="0.1" value="1.2" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">脈衝寬度 (Pulse Width)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="width-badge">1.3 節點</span>
+                </div>
+                <input type="range" id="param-width" min="0.6" max="2.5" step="0.1" value="1.3" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">停頓感 (Sharpness)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="sharp-badge">0.45</span>
+                </div>
+                <input type="range" id="param-sharp" min="0.1" max="1.0" step="0.05" value="0.45" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-semibold">律動幅度 (Body Groove)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="groove-badge">0.4</span>
+                </div>
+                <input type="range" id="param-groove" min="0.0" max="1.0" step="0.1" value="0.4" class="w-full accent-neonBlue">
+            </div>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <!-- 手臂各關節角度與高度範圍調節 -->
+        <div class="flex flex-col gap-4">
+            <h3 class="text-xs font-bold text-neonBlue tracking-wider uppercase">關節高度/角度極限 (Range)</h3>
+            
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300">肩膀幅度 (Shoulder)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="shoulder-badge">1.0x</span>
+                </div>
+                <input type="range" id="param-shoulder" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300">手肘幅度 (Elbow)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="elbow-badge">1.0x</span>
+                </div>
+                <input type="range" id="param-elbow" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300">手腕幅度 (Wrist)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="wrist-badge">1.0x</span>
+                </div>
+                <input type="range" id="param-wrist" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full accent-neonBlue">
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300">手指幅度 (Finger)</span>
+                    <span class="px-2 py-0.5 rounded bg-neonBlue/10 text-neonBlue font-mono text-[10px]" id="finger-badge">1.0x</span>
+                </div>
+                <input type="range" id="param-finger" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full accent-neonBlue">
+            </div>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <!-- 輔助開關 -->
+        <div class="flex flex-col gap-2">
+            <button id="btn-toggle-energy" class="w-full py-2 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg text-xs font-semibold text-slate-300 transition-all">顯示能量波動曲線: 啟動</button>
+            <button id="btn-toggle-skeleton" class="w-full py-2 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg text-xs font-semibold text-slate-300 transition-all">關節座標分析儀: 關閉</button>
+        </div>
+    </div>
+
+    <!-- 3. 主舞台 -->
+    <div id="stage-container" class="flex-1 relative flex justify-center items-center h-full w-full bg-gradient-to-b from-[#121528] to-brandBg">
+        
+        <!-- 即時狀態面板 -->
+        <div class="absolute top-4 left-4 flex gap-3 z-10 pointer-events-none scale-90 sm:scale-100 origin-top-left">
+            <div class="bg-panelBg border border-white/10 px-3 py-1.5 rounded-lg flex flex-col">
+                <span class="text-[9px] text-slate-500 uppercase tracking-widest font-semibold">能量核心關節</span>
+                <span id="status-joint" class="text-xs font-extrabold text-neonBlue">Left Finger</span>
+            </div>
+            <div class="bg-panelBg border border-white/10 px-3 py-1.5 rounded-lg flex flex-col">
+                <span class="text-[9px] text-slate-500 uppercase tracking-widest font-semibold">波動進度</span>
+                <span id="status-phase" class="text-xs font-extrabold text-neonPink">0.00 %</span>
+            </div>
+        </div>
+
+        <!-- 提示手勢 -->
+        <div id="touch-hint" class="absolute inset-x-0 bottom-12 flex justify-center items-center pointer-events-none transition-opacity duration-1000 z-10">
+            <div class="bg-black/60 border border-white/10 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 text-xs text-slate-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-neonBlue animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                </svg>
+                <span>提示：在畫布上左右拖動或點擊，能手動控制波浪！</span>
+            </div>
+        </div>
+
+        <canvas id="stage" class="w-full h-full block"></canvas>
+    </div>
+
+    <!-- 4. 手機端側滑遮罩 -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+    <script>
+        const canvas = document.getElementById('stage');
+        const ctx = canvas.getContext('2d');
+
+        // 手機選單控制
+        const menuBtn = document.getElementById('btn-toggle-menu');
+        const closeMenuBtn = document.getElementById('btn-close-menu');
+        const controlPanel = document.getElementById('control-panel');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const touchHint = document.getElementById('touch-hint');
+
+        setTimeout(() => {
+            if (touchHint) touchHint.classList.add('opacity-0');
+        }, 6000);
+
+        function toggleMobileMenu(show) {
+            if (show) {
+                controlPanel.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.remove('hidden');
+            } else {
+                controlPanel.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
+            }
+        }
+
+        menuBtn?.addEventListener('click', () => toggleMobileMenu(true));
+        closeMenuBtn?.addEventListener('click', () => toggleMobileMenu(false));
+        sidebarOverlay?.addEventListener('click', () => toggleMobileMenu(false));
+
+        // 系統與狀態變數
+        let isPlaying = true;
+        let lastTime = 0;
+        let localTime = 0;
+        let showEnergyCurve = true;
+        let showSkeletonLabels = false;
+
+        const state = {
+            mode: 'pulse',
+            dir: 'L2R',
+            speed: 1.2,
+            pulseWidth: 1.3,
+            sharpness: 0.45,
+            groove: 0.4,
+            pulseCenter: -6.0,
+            pulseActive: true,
+            currentDirSign: 1,
+            
+            // 關節振幅比例
+            shoulderScale: 1.0,
+            elbowScale: 1.0,
+            wristScale: 1.0,
+            fingerScale: 1.0,
+
+            // [新狀態] 雙臂的基礎旋轉角 (使用弧度表示，初始為 Classic T-Pose)
+            leftArmBaseAngle: -180 * Math.PI / 180, // 水平向左
+            rightArmBaseAngle: 0 * Math.PI / 180    // 水平向右
+        };
+
+        // 骨架結構長度配置 (人體工學黃金比例)
+        const L_ARM_LENGTHS = [18, 25, 60, 65, 45]; // left: finger, knuckle, wrist, elbow, shoulder
+        const R_ARM_LENGTHS = [45, 65, 60, 25, 18]; // right: shoulder, elbow, wrist, knuckle, finger
+        const NECK_LENGTH = 25;
+        const HEAD_RADIUS = 26;
+        const SPINE_LENGTH = 130;
+        const HIP_WIDTH = 45;
+        const LEG_THIGH = 80;
+        const LEG_SHIN = 75;
+
+        // [街舞顧問調校] 手臂各個旋轉關節的基準動態偏擺幅度 (弧度)
+        const BASE_WAVE_AMPS = [
+            0.22, // 0: Left Fingertip (Finger)
+            0.26, // 1: Left Knuckles (Finger)
+            0.55, // 2: Left Wrist (Wrist)
+            0.50, // 3: Left Elbow (Elbow)
+            0.24, // 4: Left Shoulder (Shoulder)
+            0.00, // 5: Chest (錨定主幹)
+            0.24, // 6: Right Shoulder (Shoulder)
+            0.50, // 7: Right Elbow (Elbow)
+            0.55, // 8: Right Wrist (Wrist)
+            0.26, // 9: Right Knuckles (Finger)
+            0.22  // 10: Right Fingertip (Finger)
+        ];
+
+        const JOINT_NAMES_ZH = [
+            "左指尖 (L-Finger)", "左手掌 (L-Knuckle)", "左手腕 (L-Wrist)", "左手肘 (L-Elbow)", "左肩 (L-Shoulder)",
+            "胸腔 (Chest)",
+            "右肩 (R-Shoulder)", "右手肘 (R-Elbow)", "右手腕 (R-Wrist)", "右手掌 (R-Knuckle)", "右指尖 (R-Finger)"
+        ];
+
+        let trailHistory = [];
+        const MAX_TRAILS = 12;
+
+        let globalScale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            
+            const dpr = window.devicePixelRatio || 1;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+
+            const virtualW = 800;
+            const virtualH = 600;
+            const scaleX = w / virtualW;
+            const scaleY = h / virtualH;
+            
+            globalScale = Math.min(scaleX, scaleY) * 0.95;
+            offsetX = (w - virtualW * globalScale) / 2;
+            offsetY = (h - virtualH * globalScale) / 2 + 30;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const ui = {
+            speed: document.getElementById('param-speed'),
+            width: document.getElementById('param-width'),
+            sharp: document.getElementById('param-sharp'),
+            groove: document.getElementById('param-groove'),
+            shoulder: document.getElementById('param-shoulder'),
+            elbow: document.getElementById('param-elbow'),
+            wrist: document.getElementById('param-wrist'),
+            finger: document.getElementById('param-finger'),
+            
+            // [新UI元素] 左右臂基底角度滑桿與顯示
+            leftAngle: document.getElementById('param-left-angle'),
+            rightAngle: document.getElementById('param-right-angle'),
+            leftAngleBadge: document.getElementById('left-angle-badge'),
+            rightAngleBadge: document.getElementById('right-angle-badge'),
+            
+            speedBadge: document.getElementById('speed-badge'),
+            widthBadge: document.getElementById('width-badge'),
+            sharpBadge: document.getElementById('sharp-badge'),
+            grooveBadge: document.getElementById('groove-badge'),
+            shoulderBadge: document.getElementById('shoulder-badge'),
+            elbowBadge: document.getElementById('elbow-badge'),
+            wristBadge: document.getElementById('wrist-badge'),
+            fingerBadge: document.getElementById('finger-badge'),
+
+            btnTrigger: document.getElementById('btn-trigger'),
+            btnPlay: document.getElementById('btn-play-pause'),
+            btnEnergy: document.getElementById('btn-toggle-energy'),
+            btnSkeleton: document.getElementById('btn-toggle-skeleton'),
+            statusJoint: document.getElementById('status-joint'),
+            statusPhase: document.getElementById('status-phase'),
+            modeDesc: document.getElementById('mode-desc')
+        };
+
+        // 綁定基礎物理參數
+        ui.speed?.addEventListener('input', (e) => { state.speed = parseFloat(e.target.value); ui.speedBadge.textContent = state.speed + ' Hz'; });
+        ui.width?.addEventListener('input', (e) => { state.pulseWidth = parseFloat(e.target.value); ui.widthBadge.textContent = state.pulseWidth + ' 節點'; });
+        ui.sharp?.addEventListener('input', (e) => { state.sharpness = parseFloat(e.target.value); ui.sharpBadge.textContent = state.sharpness; });
+        ui.groove?.addEventListener('input', (e) => { state.groove = parseFloat(e.target.value); ui.grooveBadge.textContent = state.groove; });
+
+        // 綁定關節振幅比例
+        ui.shoulder?.addEventListener('input', (e) => { state.shoulderScale = parseFloat(e.target.value); ui.shoulderBadge.textContent = state.shoulderScale.toFixed(1) + 'x'; });
+        ui.elbow?.addEventListener('input', (e) => { state.elbowScale = parseFloat(e.target.value); ui.elbowBadge.textContent = state.elbowScale.toFixed(1) + 'x'; });
+        ui.wrist?.addEventListener('input', (e) => { state.wristScale = parseFloat(e.target.value); ui.wristBadge.textContent = state.wristScale.toFixed(1) + 'x'; });
+        ui.finger?.addEventListener('input', (e) => { state.fingerScale = parseFloat(e.target.value); ui.fingerBadge.textContent = state.fingerScale.toFixed(1) + 'x'; });
+
+        // [新功能綁定] 綁定左右手臂基底旋轉角滑桿
+        ui.leftAngle?.addEventListener('input', (e) => {
+            const deg = parseInt(e.target.value);
+            state.leftArmBaseAngle = deg * Math.PI / 180;
+            ui.leftAngleBadge.textContent = deg + '°';
+            clearActivePresetHighlight();
+        });
+        ui.rightAngle?.addEventListener('input', (e) => {
+            const deg = parseInt(e.target.value);
+            state.rightArmBaseAngle = deg * Math.PI / 180;
+            ui.rightAngleBadge.textContent = deg + '°';
+            clearActivePresetHighlight();
+        });
+
+        // [新功能綁定] 姿勢手勢預設處理
+        const presets = {
+            tpose: { left: -180, right: 0 },
+            raised: { left: -135, right: -45 },
+            lowered: { left: 135, right: 45 },
+            asym: { left: -135, right: 45 },
+            egyptian: { left: -90, right: 0 }
+        };
+
+        function clearActivePresetHighlight() {
+            document.querySelectorAll('#preset-group button').forEach(b => {
+                b.className = "py-1.5 text-[11px] font-bold rounded-md bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition-all";
+            });
+        }
+
+        document.querySelectorAll('#preset-group button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                clearActivePresetHighlight();
+                e.target.className = "py-1.5 text-[11px] font-bold rounded-md bg-neonBlue/10 border border-neonBlue/20 text-neonBlue active:scale-95 transition-all";
+                
+                const presetKey = e.target.dataset.preset;
+                const config = presets[presetKey];
+                if (config) {
+                    // 更新滑桿數值
+                    ui.leftAngle.value = config.left;
+                    ui.rightAngle.value = config.right;
+                    
+                    // 更新狀態
+                    state.leftArmBaseAngle = config.left * Math.PI / 180;
+                    state.rightArmBaseAngle = config.right * Math.PI / 180;
+                    
+                    // 更新文字顯示
+                    ui.leftAngleBadge.textContent = config.left + '°';
+                    ui.rightAngleBadge.textContent = config.right + '°';
+                }
+            });
+        });
+
+        // 傳導模式切換
+        document.querySelectorAll('#wave-mode-group button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#wave-mode-group button').forEach(b => b.className = "flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-slate-400 hover:text-white");
+                e.target.className = "flex-1 py-1.5 text-xs font-bold rounded-md transition-all bg-neonBlue/20 text-neonBlue border border-neonBlue/30";
+                state.mode = e.target.dataset.mode;
+                
+                if (state.mode === 'pulse') {
+                    ui.modeDesc.textContent = "單次脈衝適合手指劃動或單次 Pop 觸發；連續正弦呈現不間斷的波浪流。";
+                    ui.btnTrigger.style.opacity = "1";
+                    ui.btnTrigger.style.pointerEvents = "auto";
+                } else {
+                    ui.modeDesc.textContent = "連續正弦波浪會持續在體內激盪，可以藉由調整相位拉出極具美感的動態。";
+                    ui.btnTrigger.style.opacity = "0.4";
+                    ui.btnTrigger.style.pointerEvents = "none";
+                }
+                resetWaveState();
+            });
+        });
+
+        document.querySelectorAll('#dir-group button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#dir-group button').forEach(b => b.className = "py-1.5 text-xs font-bold rounded-md transition-all text-slate-400 hover:text-white");
+                e.target.className = "py-1.5 text-xs font-bold rounded-md transition-all bg-neonBlue/20 text-neonBlue border border-neonBlue/30";
+                state.dir = e.target.dataset.dir;
+                resetWaveState();
+            });
+        });
+
+        ui.btnPlay?.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                ui.btnPlay.textContent = "暫停模擬";
+                ui.btnPlay.className = "py-2.5 bg-white/5 text-white border border-white/10 hover:bg-white/10 rounded-lg font-bold text-xs active:scale-95 transition-all";
+            } else {
+                ui.btnPlay.textContent = "啟動模擬";
+                ui.btnPlay.className = "py-2.5 bg-neonBlue/20 text-neonBlue border border-neonBlue/30 rounded-lg font-bold text-xs active:scale-95 transition-all";
+            }
+        });
+
+        function triggerPop() {
+            if (state.mode === 'pulse') {
+                if (state.dir === 'L2R') {
+                    state.pulseCenter = -5.5;
+                    state.currentDirSign = 1;
+                } else if (state.dir === 'R2L') {
+                    state.pulseCenter = 5.5;
+                    state.currentDirSign = -1;
+                } else {
+                    state.pulseCenter = state.currentDirSign === 1 ? -5.5 : 5.5;
+                }
+                state.pulseActive = true;
+            }
+        }
+        ui.btnTrigger?.addEventListener('click', triggerPop);
+
+        ui.btnEnergy?.addEventListener('click', () => {
+            showEnergyCurve = !showEnergyCurve;
+            ui.btnEnergy.textContent = "顯示能量波動曲線: " + (showEnergyCurve ? "啟動" : "關閉");
+        });
+        ui.btnSkeleton?.addEventListener('click', () => {
+            showSkeletonLabels = !showSkeletonLabels;
+            ui.btnSkeleton.textContent = "關節座標分析儀: " + (showSkeletonLabels ? "啟動" : "關閉");
+        });
+
+        function resetWaveState() {
+            if (state.dir === 'L2R') {
+                state.pulseCenter = -5.5;
+                state.currentDirSign = 1;
+            } else if (state.dir === 'R2L') {
+                state.pulseCenter = 5.5;
+                state.currentDirSign = -1;
+            } else {
+                state.pulseCenter = -5.5;
+                state.currentDirSign = 1;
+            }
+            state.pulseActive = true;
+        }
+
+        // 觸控座標與核心映射
+        function getCanvasTouchX(clientX) {
+            const rect = canvas.getBoundingClientRect();
+            const relX = (clientX - rect.left) / rect.width;
+            const virtualX = relX * 800;
+            return virtualX;
+        }
+
+        function mapXToPulseCenter(virtualX) {
+            const leftLimit = 150;
+            const rightLimit = 650;
+            let percent = (virtualX - leftLimit) / (rightLimit - leftLimit);
+            percent = Math.max(0, Math.min(1, percent));
+            return -5.5 + percent * 11;
+        }
+
+        let isDragging = false;
+
+        function handleStart(clientX) {
+            isDragging = true;
+            if (state.mode === 'pulse') {
+                const vx = getCanvasTouchX(clientX);
+                state.pulseCenter = mapXToPulseCenter(vx);
+                state.pulseActive = true;
+            } else {
+                triggerPop();
+            }
+        }
+
+        function handleMove(clientX) {
+            if (isDragging && state.mode === 'pulse') {
+                const vx = getCanvasTouchX(clientX);
+                state.pulseCenter = mapXToPulseCenter(vx);
+            }
+        }
+
+        function handleEnd() {
+            isDragging = false;
+        }
+
+        canvas.addEventListener('mousedown', (e) => handleStart(e.clientX));
+        canvas.addEventListener('mousemove', (e) => handleMove(e.clientX));
+        window.addEventListener('mouseup', handleEnd);
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                handleStart(e.touches[0].clientX);
+            }
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                handleMove(e.touches[0].clientX);
+            }
+        });
+        canvas.addEventListener('touchend', handleEnd);
+
+        // --- 核心 Waving 純角度正向運動學 (Angle-based FK) 演算法 ---
+        function evaluateSkeleton(t) {
+            const cx = 400; // 虛擬畫布中心 X
+            const cy = 250; // 調整胸腔高度 Y 留出上方舉手發揮空間
+
+            const heights = new Array(11).fill(0);
+            let activeCoreIndex = 5;
+            let progressPercent = 0;
+
+            // [動態幅度計算] 套用肩膀、手肘、手腕、手指獨立倍率
+            const dynamicAmps = [...BASE_WAVE_AMPS];
+            dynamicAmps[0] *= state.fingerScale;
+            dynamicAmps[1] *= state.fingerScale;
+            dynamicAmps[9] *= state.fingerScale;
+            dynamicAmps[10] *= state.fingerScale;
+
+            dynamicAmps[2] *= state.wristScale;
+            dynamicAmps[8] *= state.wristScale;
+
+            dynamicAmps[3] *= state.elbowScale;
+            dynamicAmps[7] *= state.elbowScale;
+
+            dynamicAmps[4] *= state.shoulderScale;
+            dynamicAmps[6] *= state.shoulderScale;
+
+            // 1. 計算 Waving 局部旋轉波形訊號 (Wave Signal Offset)
+            const localWaveOffsets = new Array(11).fill(0);
+
+            if (state.mode === 'pulse') {
+                // 單次脈衝模式下的波動推導
+                const rawPos = state.pulseCenter;
+                const normalizedPos = (rawPos + 5) / 10;
+                activeCoreIndex = Math.max(0, Math.min(10, Math.round(rawPos + 5)));
+                progressPercent = Math.max(0, Math.min(100, Math.round(normalizedPos * 100)));
+
+                for (let i = 0; i < 11; i++) {
+                    if (i === 5) continue; // 胸腔不進行角度波動
+                    const nodeX = i - 5;
+                    const distance = nodeX - rawPos;
+                    
+                    // 高斯脈衝分布
+                    const pulseIntensity = Math.exp(-(distance * distance) / (2 * state.pulseWidth * state.pulseWidth));
+                    const shapedIntensity = Math.pow(pulseIntensity, state.sharpness);
+
+                    if (state.pulseActive) {
+                        // [街舞物理核心優化] 交替正弦因子補償
+                        // 讓波峰前進時，相鄰關節產生反向補償，消除手臂整體捲曲，維持手臂主軸挺直
+                        const waveSign = Math.sin((nodeX - rawPos) * (Math.PI / 2));
+                        localWaveOffsets[i] = dynamicAmps[i] * waveSign * shapedIntensity;
+                    }
+                }
+            } else {
+                // 連續正弦模式
+                const omega = state.speed * 2 * Math.PI;
+                const phaseStep = 0.65;
+                const dirFactor = state.dir === 'R2L' ? -1 : 1; 
+
+                const rawPeak = 5 + (((omega * t - Math.PI / 2) % (2 * Math.PI)) / phaseStep) * dirFactor;
+                activeCoreIndex = Math.abs(Math.round(rawPeak) % 11);
+                progressPercent = Math.round((activeCoreIndex / 10) * 100);
+
+                for (let i = 0; i < 11; i++) {
+                    if (i === 5) continue;
+                    const nodeX = i - 5;
+                    
+                    // 根據波動方向推演相位偏移
+                    const directionSign = (state.dir === 'L2R' || (state.dir === 'bounce' && state.currentDirSign === 1)) ? 1 : -1;
+                    const phaseOffset = directionSign === 1 ? i * phaseStep : (10 - i) * phaseStep;
+                    
+                    const rawSine = Math.sin(omega * t - phaseOffset);
+                    const signedFactor = rawSine >= 0 ? 1 : -1;
+                    const shapedSine = signedFactor * Math.pow(Math.abs(rawSine), state.sharpness);
+
+                    localWaveOffsets[i] = dynamicAmps[i] * shapedSine;
+                }
+            }
+
+            // 更新面板核心關節狀態
+            ui.statusJoint.textContent = JOINT_NAMES_ZH[activeCoreIndex];
+            ui.statusPhase.textContent = progressPercent + ' %';
+            if (activeCoreIndex === 5 && Math.abs(localWaveOffsets[4] + localWaveOffsets[6]) > 0.05) {
+                ui.statusJoint.className = 'text-xs font-extrabold text-neonPink';
+            } else {
+                ui.statusJoint.className = 'text-xs font-extrabold text-neonBlue';
+            }
+
+            // 全身律動 (Body Groove) 動態起伏
+            // 隨肩膀和胸腔的波浪產生微幅軀幹和膝蓋的反向位移，展現動態彈性
+            const chestGrooveY = Math.abs(localWaveOffsets[4] + localWaveOffsets[6]) * 15 * state.groove;
+            const hipY = cy + SPINE_LENGTH + chestGrooveY * 0.8;
+            const hipX = cx - (localWaveOffsets[4] - localWaveOffsets[6]) * 12;
+
+            const chestShiftX = (localWaveOffsets[3] - localWaveOffsets[7]) * 10; 
+            const chestPoint = { x: cx + chestShiftX, y: cy + chestGrooveY };
+
+            // 2. 應用純角度層級 FK 重建 11 個關節點 (絕對保證骨骼長度不拉伸)
+            const pts = new Array(11);
+            pts[5] = chestPoint; // 以 Chest 為骨架原點
+
+            // --- 左半身重建 (從 J5 胸腔向外傳導至 J0 左指尖) ---
+            // 疊加左手臂基礎旋轉角與各個節點的角度波動
+            let currentLeftGlobalAngle = state.leftArmBaseAngle;
+            for (let i = 4; i >= 0; i--) {
+                const parent = pts[i + 1];
+                const boneLen = L_ARM_LENGTHS[i];
+                
+                // 累加局部波浪旋轉，形成傳導
+                currentLeftGlobalAngle += localWaveOffsets[i];
+                
+                const nextX = parent.x + boneLen * Math.cos(currentLeftGlobalAngle);
+                const nextY = parent.y + boneLen * Math.sin(currentLeftGlobalAngle);
+                
+                pts[i] = { x: nextX, y: nextY };
+            }
+
+            // --- 右半身重建 (從 J5 胸腔向外傳導至 J10 右指尖) ---
+            let currentRightGlobalAngle = state.rightArmBaseAngle;
+            for (let i = 6; i <= 10; i++) {
+                const parent = pts[i - 1];
+                const boneLen = R_ARM_LENGTHS[i - 6];
+                
+                currentRightGlobalAngle += localWaveOffsets[i];
+                
+                const nextX = parent.x + boneLen * Math.cos(currentRightGlobalAngle);
+                const nextY = parent.y + boneLen * Math.sin(currentRightGlobalAngle);
+                
+                pts[i] = { x: nextX, y: nextY };
+            }
+
+            // 3. 重建身體其餘剛體結構 (頭、頸、脊椎、骨盆、下肢)
+            const headPoint = { x: chestPoint.x, y: chestPoint.y - NECK_LENGTH - HEAD_RADIUS };
+            const pelvisPoint = { x: hipX, y: hipY };
+            const lHip = { x: pelvisPoint.x - HIP_WIDTH / 2, y: pelvisPoint.y };
+            const rHip = { x: pelvisPoint.x + HIP_WIDTH / 2, y: pelvisPoint.y };
+
+            // 膝蓋微曲 (隨 Groove 連動)
+            const kneeOffset = chestGrooveY * 0.4;
+            const lKnee = { x: lHip.x - 15, y: lHip.y + LEG_THIGH + kneeOffset };
+            const rKnee = { x: rHip.x + 15, y: rHip.y + LEG_THIGH + kneeOffset };
+
+            const lAnkle = { x: lKnee.x - 5, y: lKnee.y + LEG_SHIN - kneeOffset };
+            const rAnkle = { x: rKnee.x + 5, y: rKnee.y + LEG_SHIN - kneeOffset };
+
+            return {
+                waveChain: pts,
+                head: headPoint,
+                pelvis: pelvisPoint,
+                leftHip: lHip,
+                rightHip: rHip,
+                leftKnee: lKnee,
+                rightKnee: rKnee,
+                leftAnkle: lAnkle,
+                rightAnkle: rAnkle
+            };
+        }
+
+        // --- 核心渲染迴圈 ---
+        function renderLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            if (dt > 0.1) dt = 0.1;
+
+            if (isPlaying) {
+                if (!isDragging) {
+                    localTime += dt;
+                    if (state.mode === 'pulse' && state.pulseActive) {
+                        const moveStep = state.speed * 8 * dt * state.currentDirSign;
+                        state.pulseCenter += moveStep;
+
+                        if (state.dir === 'bounce') {
+                            if (state.pulseCenter > 5.5 && state.currentDirSign === 1) {
+                                state.pulseCenter = 5.5;
+                                state.currentDirSign = -1;
+                            } else if (state.pulseCenter < -5.5 && state.currentDirSign === -1) {
+                                state.pulseCenter = -5.5;
+                                state.currentDirSign = 1;
+                            }
+                        } else if (state.dir === 'L2R' && state.pulseCenter > 6.0) {
+                            state.pulseCenter = -6.0;
+                        } else if (state.dir === 'R2L' && state.pulseCenter < -6.0) {
+                            state.pulseCenter = 6.0;
+                        }
+                    }
+                } else {
+                    localTime += dt * 0.3; // 拖曳中仍推進微小呼吸時間，使肢體動態自然
+                }
+            }
+
+            const skeleton = evaluateSkeleton(localTime);
+
+            trailHistory.push(JSON.parse(JSON.stringify(skeleton.waveChain)));
+            if (trailHistory.length > MAX_TRAILS) {
+                trailHistory.shift();
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            const dpr = window.devicePixelRatio || 1;
+            ctx.scale(dpr, dpr);
+            
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(globalScale, globalScale);
+
+            // 1. 繪製科技網格背景
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < 800; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 600); ctx.stroke();
+            }
+            for (let y = 0; y < 600; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke();
+            }
+
+            // 2. 繪製地平線
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 520);
+            ctx.lineTo(750, 520);
+            ctx.stroke();
+
+            // 3. 背景能量曲線輔助線
+            if (showEnergyCurve) {
+                ctx.strokeStyle = 'rgba(254, 9, 121, 0.22)';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([4, 6]);
+                ctx.beginPath();
+                ctx.moveTo(skeleton.waveChain[0].x, skeleton.waveChain[0].y - 30);
+                for (let i = 1; i < 11; i++) {
+                    ctx.lineTo(skeleton.waveChain[i].x, skeleton.waveChain[i].y - 30);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // 4. Waving 動態漸變殘影 (Motion Trail)
+            for (let t = 0; t < trailHistory.length - 1; t++) {
+                const alpha = (t / trailHistory.length) * 0.12;
+                ctx.strokeStyle = `rgba(0, 242, 254, ${alpha})`;
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(trailHistory[t][0].x, trailHistory[t][0].y);
+                for (let i = 1; i < trailHistory[t].length; i++) {
+                    ctx.lineTo(trailHistory[t][i].x, trailHistory[t][i].y);
+                }
+                ctx.stroke();
+            }
+
+            // 5. 繪製身體下部、軀幹與脊椎 (保持簡潔發光)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 脊椎
+            ctx.beginPath();
+            ctx.moveTo(skeleton.waveChain[5].x, skeleton.waveChain[5].y);
+            ctx.lineTo(skeleton.pelvis.x, skeleton.pelvis.y);
+            ctx.stroke();
+
+            // 骨盆
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.beginPath();
+            ctx.moveTo(skeleton.leftHip.x, skeleton.leftHip.y);
+            ctx.lineTo(skeleton.pelvis.x, skeleton.pelvis.y);
+            ctx.lineTo(skeleton.rightHip.x, skeleton.rightHip.y);
+            ctx.stroke();
+
+            // 腿部 ( thigh & shin )
+            ctx.beginPath();
+            ctx.moveTo(skeleton.leftHip.x, skeleton.leftHip.y);
+            ctx.lineTo(skeleton.leftKnee.x, skeleton.leftKnee.y);
+            ctx.lineTo(skeleton.leftAnkle.x, 520);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(skeleton.rightHip.x, skeleton.rightHip.y);
+            ctx.lineTo(skeleton.rightKnee.x, skeleton.rightKnee.y);
+            ctx.lineTo(skeleton.rightAnkle.x, 520);
+            ctx.stroke();
+
+            // 6. 繪製核心 Waving 雙臂 (霓虹發光)
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 10;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = 'rgba(0, 242, 254, 0.6)';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(skeleton.waveChain[0].x, skeleton.waveChain[0].y);
+            for (let i = 1; i < 11; i++) {
+                ctx.lineTo(skeleton.waveChain[i].x, skeleton.waveChain[i].y);
+            }
+            ctx.stroke();
+
+            // 重置陰影發光，防止影響其餘元件
+            ctx.shadowBlur = 0;
+
+            // 7. 賽博霓虹發光頭部 (Sleek Cyber Head)
+            ctx.fillStyle = '#090a0f';
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 5;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 242, 254, 0.65)';
+            
+            ctx.beginPath();
+            ctx.arc(skeleton.head.x, skeleton.head.y, HEAD_RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 重置發光
+            ctx.shadowBlur = 0;
+
+            // 8. 繪製 11 個關鍵連動節點
+            for (let i = 0; i < 11; i++) {
+                const pt = skeleton.waveChain[i];
+                const isEnergyCore = Math.round(state.pulseCenter + 5) === i && state.pulseActive;
+                
+                ctx.fillStyle = isEnergyCore ? '#fe0979' : '#00f2fe';
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, isEnergyCore ? 9 : 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (isEnergyCore) {
+                    // 動態能量波動光環
+                    ctx.strokeStyle = 'rgba(254, 9, 121, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 15 + Math.sin(localTime * 12) * 3, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // 即時座標標籤
+                if (showSkeletonLabels) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                    ctx.font = '9px monospace';
+                    ctx.fillText(`J${i}: (${Math.round(pt.x)}, ${Math.round(pt.y)})`, pt.x - 22, pt.y - 15);
+                }
+            }
+
+            ctx.restore();
+            requestAnimationFrame(renderLoop);
+        }
+
+        requestAnimationFrame(renderLoop);
+    </script>
+</body>
+</html>
